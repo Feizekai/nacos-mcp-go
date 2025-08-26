@@ -115,10 +115,7 @@ func main() {
 
 ## MCP Tag 语法
 
-要声明一个函数作为 MCP 工具，您需要使用带有以下语法的 `mcp` 标签：
-
-### 结构体中的函数字段
-
+要声明一个作为 MCP 工具，您需要使用带有以下语法的 `mcp` 标签，以下面的结构体为例
 ```go
 type MyMCPService struct {
     GetTime func() string              `mcp:"tool;name=get_current_time;description=获取服务器当前时间"`
@@ -133,24 +130,9 @@ type MyMCPService struct {
 - `description=tool description`: 设置工具描述（可选）
 - `paramNames=param1,param2`: 设置函数的参数名称（可选）
 
-### 结构体字段的 mcp 标签
-
-```go
-type Request struct {
-    Name     string `json:"name" mcp:"desc=用户名称,required"`
-    Age      int    `json:"age" mcp:"desc=用户年龄"`
-    Email    string `json:"email" mcp:"desc=邮箱地址,required"`
-    Optional string `json:"optional" mcp:"desc=可选参数"`
-}
-```
-
-结构体字段支持的标签选项：
-- `desc=描述信息`: 参数描述
-- `required`: 标记为必需参数
-
 ## 安装
 
-``bash
+```bash
 go get nacos-mcp-go
 ```
 
