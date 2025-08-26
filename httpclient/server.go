@@ -9,9 +9,9 @@ import (
 
 // Server HTTP服务器封装
 type Server struct {
-	addr    string
-	handler http.Handler
-	server  *http.Server
+	addr       string
+	handler    http.Handler
+	httpServer *http.Server
 }
 
 // NewServer 创建新的HTTP服务器
@@ -24,12 +24,15 @@ func NewServer(addr string, handler http.Handler) *Server {
 
 // Start 启动HTTP服务器
 func (s *Server) Start() error {
-	s.server = &http.Server{
-		Addr:    s.addr,
-		Handler: s.handler,
+	s.httpServer = &http.Server{
+		Addr:         s.addr,
+		Handler:      s.handler,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
 	}
 
@@ -38,17 +41,14 @@ func (s *Server) Start() error {
 
 // Shutdown 优雅关闭HTTP服务器
 func (s *Server) Shutdown(ctx context.Context) error {
-	if s.server == nil {
+	if s.httpServer == nil {
 		return nil
 	}
 
-	// 创建一个带超时的上下文
-	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
+	return s.httpServer.Shutdown(ctx)
+}
 
-	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("failed to shutdown HTTP server: %w", err)
-	}
-
-	return nil
+// GetAddr 获取服务器地址
+func (s *Server) GetAddr() string {
+	return s.addr
 }

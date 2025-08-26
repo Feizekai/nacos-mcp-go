@@ -3,40 +3,37 @@ package nacosmcp
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"nacos-mcp-go/handler"
+	"nacos-mcp-go/httpclient"
 	"nacos-mcp-go/scanner"
+	"nacos-mcp-go/types"
 )
 
-// Protocol MCP协议类型
-type Protocol string
+type Protocol = types.Protocol
+type Tool = types.Tool
 
 const (
-	ProtocolStdio      Protocol = "stdio"           // 标准输入输出
-	ProtocolSSE        Protocol = "sse"             // Server-Sent Events
-	ProtocolStreamHTTP Protocol = "streamable-http" // 流式HTTP
+	ProtocolStdio      = types.ProtocolStdio
+	ProtocolSSE        = types.ProtocolSSE
+	ProtocolStreamHTTP = types.ProtocolStreamHTTP
 )
 
 // Server MCP服务器实例
 type Server struct {
-	name      string
-	namespace string
-	group     string
-	ip        string
-	port      int
-	protocol  Protocol
-	tools     []Tool
-	metadata  map[string]string
+	name       string
+	namespace  string
+	group      string
+	ip         string
+	port       int
+	protocol   Protocol
+	tools      []Tool
+	metadata   map[string]string
+	httpServer *httpclient.Server
+	running    bool
 }
 
-// Tool MCP工具定义
-type Tool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	InputSchema map[string]interface{} `json:"inputSchema"`
-	Handler     interface{}            `json:"-"`
-}
-
-// Option 配置选项
 type Option func(*Server)
 
 // WithNamespace 设置命名空间
@@ -138,13 +135,47 @@ func (s *Server) RegisterService(service interface{}) error {
 
 // Start 启动服务器
 func (s *Server) Start(ctx context.Context) error {
-	// TODO: 实现HTTP服务器启动逻辑
+	if s.running {
+		return fmt.Errorf("server is already running")
+	}
+
+	// 只有非stdio协议才需要启动HTTP服务器
+	if s.protocol != ProtocolStdio {
+		// 创建HTTP处理器
+		httpHandler := handler.NewHTTPHandler(s)
+		mux := http.NewServeMux()
+		httpHandler.RegisterRoutes(mux)
+
+		// 创建HTTP服务器
+		addr := fmt.Sprintf("%s:%d", s.ip, s.port)
+		s.httpServer = httpclient.NewServer(addr, mux)
+
+		// 在goroutine中启动HTTP服务器
+		go func() {
+			if err := s.httpServer.Start(); err != nil {
+				fmt.Printf("HTTP server error: %v\n", err)
+			}
+		}()
+	}
+
+	s.running = true
 	return nil
 }
 
 // Stop 停止服务器
 func (s *Server) Stop(ctx context.Context) error {
-	// TODO: 实现服务器停止逻辑
+	if !s.running {
+		return nil
+	}
+
+	// 停止HTTP服务器
+	if s.httpServer != nil {
+		if err := s.httpServer.Shutdown(ctx); err != nil {
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+		}
+	}
+
+	s.running = false
 	return nil
 }
 
@@ -181,6 +212,11 @@ func (s *Server) GetMetadata() map[string]string {
 // GetProtocol 获取协议类型
 func (s *Server) GetProtocol() Protocol {
 	return s.protocol
+}
+
+// IsRunning 检查服务器是否正在运行
+func (s *Server) IsRunning() bool {
+	return s.running
 }
 
 // scanTool 扫描单个工具函数

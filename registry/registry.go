@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	nacosmcp "nacos-mcp-go"
+	"nacos-mcp-go/types"
 )
 
 // Client Nacos MCP注册客户端
@@ -74,7 +74,7 @@ func NewClient(serverAddr string, opts ...Option) *Client {
 }
 
 // Register 注册MCP服务器到Nacos
-func (c *Client) Register(ctx context.Context, server *nacosmcp.Server) (string, error) {
+func (c *Client) Register(ctx context.Context, server types.ServerInterface) (string, error) {
 	if err := c.ensureAuth(); err != nil {
 		return "", fmt.Errorf("authentication failed: %w", err)
 	}
@@ -187,7 +187,7 @@ func (c *Client) login() error {
 }
 
 // buildRegisterRequest 构建注册请求
-func (c *Client) buildRegisterRequest(server *nacosmcp.Server) (*http.Request, error) {
+func (c *Client) buildRegisterRequest(server types.ServerInterface) (*http.Request, error) {
 	// 构建服务器规范
 	ip, port := server.GetAddress()
 	protocol := string(server.GetProtocol())
@@ -205,7 +205,7 @@ func (c *Client) buildRegisterRequest(server *nacosmcp.Server) (*http.Request, e
 	}
 
 	// 根据协议类型添加不同的配置
-	if server.GetProtocol() == nacosmcp.ProtocolStdio {
+	if server.GetProtocol() == types.ProtocolStdio {
 		// stdio协议使用本地配置
 		serverSpec["localServerConfig"] = map[string]interface{}{}
 	} else {
@@ -266,7 +266,7 @@ func (c *Client) buildRegisterRequest(server *nacosmcp.Server) (*http.Request, e
 
 	// 构建端点规范（仅对非stdio协议）
 	var endpointSpec map[string]interface{}
-	if server.GetProtocol() != nacosmcp.ProtocolStdio {
+	if server.GetProtocol() != types.ProtocolStdio {
 		endpointSpec = map[string]interface{}{
 			"type": "DIRECT",
 			"data": map[string]interface{}{
@@ -374,7 +374,7 @@ func (c *Client) parseRegisterResponse(resp *http.Response) (string, error) {
 		return "", fmt.Errorf("parse response failed: %w", err)
 	}
 
-	if result.Code != 200 {
+	if result.Code != 200 && result.Code != 0 {
 		return "", fmt.Errorf("register failed: %s", result.Message)
 	}
 
@@ -410,7 +410,7 @@ func (c *Client) checkResponse(resp *http.Response) error {
 }
 
 // Register 注册MCP服务器到Nacos
-func Register(ctx context.Context, server *nacosmcp.Server, serverAddr string, opts ...Option) (string, error) {
+func Register(ctx context.Context, server types.ServerInterface, serverAddr string, opts ...Option) (string, error) {
 	client := NewClient(serverAddr, opts...)
 	return client.Register(ctx, server)
 }
@@ -428,13 +428,13 @@ func List(ctx context.Context, serverAddr string, search string, pageNo, pageSiz
 }
 
 // getFrontProtocol 获取前端协议
-func (c *Client) getFrontProtocol(protocol nacosmcp.Protocol) string {
+func (c *Client) getFrontProtocol(protocol types.Protocol) string {
 	switch protocol {
-	case nacosmcp.ProtocolStdio:
+	case types.ProtocolStdio:
 		return "stdio"
-	case nacosmcp.ProtocolSSE:
+	case types.ProtocolSSE:
 		return "http"
-	case nacosmcp.ProtocolStreamHTTP:
+	case types.ProtocolStreamHTTP:
 		return "http"
 	default:
 		return "http"
@@ -442,13 +442,13 @@ func (c *Client) getFrontProtocol(protocol nacosmcp.Protocol) string {
 }
 
 // getTransportProtocol 获取传输协议
-func (c *Client) getTransportProtocol(protocol nacosmcp.Protocol) string {
+func (c *Client) getTransportProtocol(protocol types.Protocol) string {
 	switch protocol {
-	case nacosmcp.ProtocolStdio:
+	case types.ProtocolStdio:
 		return "stdio"
-	case nacosmcp.ProtocolSSE:
+	case types.ProtocolSSE:
 		return "http"
-	case nacosmcp.ProtocolStreamHTTP:
+	case types.ProtocolStreamHTTP:
 		return "http"
 	default:
 		return "http"

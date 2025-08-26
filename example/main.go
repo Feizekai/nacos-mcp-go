@@ -107,6 +107,12 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// 启动MCP服务器
+	fmt.Println("\n🚀 Starting MCP Server...")
+	if err := server.Start(ctx); err != nil {
+		log.Fatalf("Failed to start MCP server: %v", err)
+	}
+
 	// 注册到Nacos
 	fmt.Println("\n🔄 Registering to Nacos MCP Registry...")
 	serverId, err := registry.Register(ctx, server, nacosServerAddr,
@@ -158,6 +164,13 @@ func main() {
 		} else {
 			fmt.Println("✅ Successfully deregistered from Nacos")
 		}
+	}
+
+	// 停止MCP服务器
+	if err := server.Stop(ctx); err != nil {
+		log.Printf("Failed to stop MCP server: %v", err)
+	} else {
+		fmt.Println("✅ MCP Server stopped")
 	}
 
 	fmt.Println("✅ Server stopped gracefully")
