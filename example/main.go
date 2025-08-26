@@ -1,132 +1,129 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	nacosmcp "nacos-mcp-go"
-	"nacos-mcp-go/handler"
-	"nacos-mcp-go/httpclient"
 	"nacos-mcp-go/registry"
 )
 
+// MyMCPService 使用函数字段定义MCP工具的服务
+type MyMCPService struct {
+	GetTime func() string              `mcp:"tool;name=get_current_time;description=获取服务器当前时间"`
+	Search  func(string, int) []string `mcp:"tool;name=search_users;description=搜索用户;paramNames=keyword,limit"`
+	Echo    func(string) string        `mcp:"tool;name=echo_message;description=回显消息;paramNames=message"`
+}
+
+// TimeService 传统方法定义的服务（向后兼容）
+type TimeService struct{}
+
+// GetCurrentTime 获取当前时间
+func (ts *TimeService) GetCurrentTime(format string) string {
+	if format == "" {
+		format = "2006-01-02 15:04:05"
+	}
+	return time.Now().Format(format)
+}
+
+// GetTimestamp 获取时间戳
+func (ts *TimeService) GetTimestamp() int64 {
+	return time.Now().Unix()
+}
+
 func main() {
-	// Nacos MCP API 配置
-	nacosServerAddr := "http://192.144.175.104:8848"
+	// Nacos配置
+	nacosServerAddr := "192.144.175.104:8848"
 	nacosUsername := "nacos"
 	nacosPassword := "37768848f!"
-	namespaceId := "" // 空字符串表示public命名空间
 
-	// 创建 MCP 服务器
-	server := &nacosmcp.Server{
-		ServiceName: "mcp-time-server",
-		GroupName:   "DEFAULT_GROUP",
-		Ip:          "127.0.0.1",
-		Port:        8082,
-		Metadata:    make(map[string]string),
-	}
+	// 创建MCP服务器，支持不同协议
+	server := nacosmcp.NewServer("advanced-mcp-service",
+		nacosmcp.WithNamespace(""),
+		nacosmcp.WithGroup("DEFAULT_GROUP"),
+		nacosmcp.WithAddress("127.0.0.1", 8082),
+		nacosmcp.WithProtocol(nacosmcp.ProtocolSSE), // 可选: ProtocolStdio, ProtocolSSE, ProtocolStreamHTTP
+		nacosmcp.WithMetadata(map[string]string{
+			"version": "2.0.0",
+			"author":  "nacos-mcp-go",
+			"type":    "advanced",
+		}),
+	)
 
-	// 添加工具 - 先定义工具，然后赋值
-	formatProp := map[string]interface{}{
-		"type":        "string",
-		"description": "时间格式，如 '2006-01-02 15:04:05'",
-		"default":     "2006-01-02 15:04:05",
-	}
-
-	timeToolProps := map[string]interface{}{
-		"format": formatProp,
-	}
-
-	timeToolSchema := map[string]interface{}{
-		"type":       "object",
-		"properties": timeToolProps,
-	}
-
-	keywordProp := map[string]interface{}{
-		"type":        "string",
-		"description": "搜索关键词",
-	}
-
-	limitProp := map[string]interface{}{
-		"type":        "integer",
-		"description": "返回结果数量限制",
-		"default":     10,
-	}
-
-	searchToolProps := map[string]interface{}{
-		"keyword": keywordProp,
-		"limit":   limitProp,
-	}
-
-	searchToolSchema := map[string]interface{}{
-		"type":       "object",
-		"properties": searchToolProps,
-		"required":   []string{"keyword"},
-	}
-
-	server.Tools = []nacosmcp.MCPTool{
-		{
-			Name:        "get_current_time",
-			Description: "获取当前时间",
-			InputSchema: timeToolSchema,
+	// 创建函数字段服务实例并实现函数
+	mcpService := &MyMCPService{
+		GetTime: func() string {
+			return time.Now().Format("2006-01-02 15:04:05")
 		},
-		{
-			Name:        "search_users",
-			Description: "搜索用户信息",
-			InputSchema: searchToolSchema,
+		Search: func(keyword string, limit int) []string {
+			// 模拟搜索逻辑
+			users := []string{"alice", "bob", "charlie", "david", "eve"}
+			var result []string
+			for _, user := range users {
+				if keyword == "" || user == keyword {
+					result = append(result, user)
+				}
+			}
+			if limit > 0 && limit < len(result) {
+				result = result[:limit]
+			}
+			return result
+		},
+		Echo: func(message string) string {
+			return fmt.Sprintf("Echo: %s", message)
 		},
 	}
 
-	// 创建 HTTP 处理器
-	httpHandler := handler.NewHTTPHandler(server)
+	// 注册函数字段服务
+	if err := server.RegisterService(mcpService); err != nil {
+		log.Fatalf("Failed to register MCP service: %v", err)
+	}
 
-	// 创建并配置 HTTP 服务器
-	mux := http.NewServeMux()
-	httpHandler.RegisterRoutes(mux)
-
-	httpServer := httpclient.NewServer(":8082", mux)
-
-	// 启动 HTTP 服务器
-	go func() {
-		log.Println("🚀 Starting MCP Server on :8082")
-		if err := httpServer.Start(); err != nil {
-			log.Fatalf("Failed to start HTTP server: %v", err)
+	// 注册单个函数
+	server.RegisterTool(func(count int) []int {
+		result := make([]int, count)
+		for i := 0; i < count; i++ {
+			result[i] = i + 1
 		}
-	}()
+		return result
+	})
 
-	// 等待服务器启动
-	time.Sleep(2 * time.Second)
+	fmt.Printf("🚀 MCP Server '%s' initialized\n", server.GetName())
+	fmt.Printf("📋 Protocol: %s\n", server.GetProtocol())
+	fmt.Printf("🔧 Registered %d tools\n", len(server.GetTools()))
 
-	// 注册到 Nacos MCP 注册表（专门的MCP服务管理）
-	fmt.Println("🔄 Registering to Nacos MCP Registry...")
-	var mcpServerId string
-	if serverId, err := registry.RegisterToNacosMcpRegistry(
-		server,
-		nacosServerAddr,
-		registry.WithAuth(nacosUsername, nacosPassword),
-		registry.WithNamespace(namespaceId),
-	); err != nil {
-		log.Printf("Failed to register to Nacos MCP Registry: %v", err)
-	} else {
-		mcpServerId = serverId
-		fmt.Println("🎉 Successfully registered to Nacos MCP Registry!")
-		fmt.Println("📋 You can now see this MCP server in Nacos Console -> AI -> MCP Management")
+	// 打印工具信息
+	fmt.Println("\n📋 Registered Tools:")
+	for i, tool := range server.GetTools() {
+		fmt.Printf("  %d. %s - %s\n", i+1, tool.Name, tool.Description)
 	}
 
-	// 演示查询 MCP 服务列表
-	fmt.Println("\n🔍 Listing MCP servers from Nacos MCP Registry...")
-	if servers, err := registry.ListNacosMcpServers(
-		nacosServerAddr,
-		"", // 搜索关键词，空表示查询所有
-		1,  // 页码
-		10, // 页大小
+	// 启动服务器
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 注册到Nacos
+	fmt.Println("\n🔄 Registering to Nacos MCP Registry...")
+	serverId, err := registry.Register(ctx, server, nacosServerAddr,
 		registry.WithAuth(nacosUsername, nacosPassword),
-		registry.WithNamespace(namespaceId),
+		registry.WithNamespace(""),
+	)
+	if err != nil {
+		log.Printf("Failed to register to Nacos: %v", err)
+	} else {
+		fmt.Printf("✅ Successfully registered to Nacos, Server ID: %s\n", serverId)
+	}
+
+	// 查询MCP服务列表
+	fmt.Println("\n🔍 Listing MCP servers...")
+	if servers, err := registry.List(ctx, nacosServerAddr, "", 1, 10,
+		registry.WithAuth(nacosUsername, nacosPassword),
+		registry.WithNamespace(""),
 	); err != nil {
 		log.Printf("Failed to list MCP servers: %v", err)
 	} else {
@@ -135,9 +132,13 @@ func main() {
 
 	// 等待中断信号
 	fmt.Println("\n🚀 MCP Server is running...")
-	fmt.Println("📡 Service Discovery: http://127.0.0.1:8848/nacos (check Service Management)")
-	fmt.Println("🤖 MCP Registry: http://127.0.0.1:8848/nacos (check AI -> MCP Management)")
-	fmt.Println("🔗 MCP Endpoint: http://127.0.0.1:8082/mcp")
+	fmt.Println("📡 Nacos Console: http://192.144.175.104:8848/nacos")
+	fmt.Println("🤖 MCP Management: AI -> MCP Management")
+	fmt.Printf("🔗 Protocol: %s\n", server.GetProtocol())
+	if server.GetProtocol() != nacosmcp.ProtocolStdio {
+		ip, port := server.GetAddress()
+		fmt.Printf("🌐 Endpoint: %s:%d/mcp\n", ip, port)
+	}
 	fmt.Println("⏹️  Press Ctrl+C to stop...")
 
 	// 优雅关闭
@@ -147,21 +148,16 @@ func main() {
 
 	fmt.Println("\n🛑 Shutting down...")
 
-	// 从 Nacos MCP 注册表注销
-	if mcpServerId != "" {
-		if err := registry.DeregisterFromNacosMcpRegistry(
-			mcpServerId,
-			nacosServerAddr,
+	// 注销服务
+	if serverId != "" {
+		if err := registry.Deregister(ctx, serverId, nacosServerAddr,
 			registry.WithAuth(nacosUsername, nacosPassword),
-			registry.WithNamespace(namespaceId),
+			registry.WithNamespace(""),
 		); err != nil {
-			log.Printf("Failed to deregister from Nacos MCP Registry: %v", err)
+			log.Printf("Failed to deregister: %v", err)
+		} else {
+			fmt.Println("✅ Successfully deregistered from Nacos")
 		}
-	}
-
-	// 停止 HTTP 服务器
-	if err := httpServer.Shutdown(nil); err != nil {
-		log.Printf("Failed to shutdown HTTP server: %v", err)
 	}
 
 	fmt.Println("✅ Server stopped gracefully")
