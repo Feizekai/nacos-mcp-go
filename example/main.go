@@ -38,9 +38,9 @@ func (ts *TimeService) GetTimestamp() int64 {
 
 func main() {
 	// Nacos配置
-	nacosServerAddr := "192.144.175.104:8848"
+	nacosServerAddr := "127.0.0.1:8848"
 	nacosUsername := "nacos"
-	nacosPassword := "37768848f!"
+	nacosPassword := "nacos"
 
 	// 创建MCP服务器，支持不同协议
 	server := nacosmcp.NewServer("advanced-mcp-service",
@@ -138,7 +138,7 @@ func main() {
 
 	// 等待中断信号
 	fmt.Println("\n🚀 MCP Server is running...")
-	fmt.Println("📡 Nacos Console: http://192.144.175.104:8848/nacos")
+	fmt.Println("📡 Nacos Console: http://127.0.0.1:8848/nacos")
 	fmt.Println("🤖 MCP Management: AI -> MCP Management")
 	fmt.Printf("🔗 Protocol: %s\n", server.GetProtocol())
 	if server.GetProtocol() != nacosmcp.ProtocolStdio {
