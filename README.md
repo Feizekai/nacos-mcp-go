@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.19-blue.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
-Nacos MCP Go is a framework for registering Go applications as MCP (Model Context Protocol) services to Nacos. It supports automatic scanning of Go struct methods and generating MCP tool specifications based on `mcp` tags.
+Nacos MCP Go is a sdk for registering Go applications as MCP (Model Context Protocol) services to Nacos. It supports automatic scanning of Go struct methods and generating MCP tool specifications based on `mcp` tags.
 
 [切换到中文版](README_zh.md)
 

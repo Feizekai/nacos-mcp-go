@@ -3,7 +3,7 @@
 [![Go Version](https://img.shields.io/badge/go-%3E%3D1.19-blue.svg)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
-Nacos MCP Go 是一个用于将 Go 应用程序注册为 MCP (Model Context Protocol) 服务到 Nacos 的框架。它支持自动扫描 Go 结构体方法并基于 `mcp` tag 生成 MCP 工具规范。
+Nacos MCP Go 是一个用于将 Go 应用程序注册为 MCP (Model Context Protocol) 服务到 Nacos 的sdk。它支持自动扫描 Go 结构体方法并基于 `mcp` tag 生成 MCP 工具规范。
 
 [Switch to English Version](README.md)
 
